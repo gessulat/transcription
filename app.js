@@ -12,6 +12,8 @@ const ConnectionState = {
 
 let connectionState = ConnectionState.DISCONNECTED;
 let connectToken = 0;
+let autoSaveTimer = null;
+let lastSavedKey = "";
 
 const el = (id) => document.getElementById(id);
 const out = el("out");
@@ -22,16 +24,32 @@ const keyInput = el("key");
 const debug = el("debug");
 const showBtn = el("show");
 const showIcon = showBtn.querySelector("i");
+const keyToggle = el("key-toggle");
+const keyPanel = el("key-panel");
 const TRANSCRIPTION_MODEL = "gpt-4o-mini-transcribe";
 
 (() => {
   const saved = localStorage.getItem("OPENAI_API_KEY");
-  if (saved) keyInput.value = saved;
+  if (saved) {
+    keyInput.value = saved;
+    lastSavedKey = saved.trim();
+  }
 })();
 
+updateKeyIndicator();
+setKeyPanelVisibility(false);
 updateShowButton(false);
 updateToggleButton();
 maybeAutoConnect();
+
+keyToggle.onclick = () => {
+  const willShow = keyPanel.hasAttribute("hidden");
+  setKeyPanelVisibility(willShow);
+  if (willShow) {
+    keyInput.focus();
+    keyInput.setSelectionRange(keyInput.value.length, keyInput.value.length);
+  }
+};
 
 showBtn.onclick = () => {
   const willShow = keyInput.type === "password";
@@ -39,20 +57,17 @@ showBtn.onclick = () => {
   updateShowButton(willShow);
 };
 
+keyInput.addEventListener("input", () => {
+  updateKeyIndicator();
+  scheduleKeySave();
+});
+
+keyInput.addEventListener("blur", () => {
+  persistKey({ force: true });
+});
+
 debug.onchange = () => {
   logBox.style.display = debug.checked ? "block" : "none";
-};
-
-el("save").onclick = () => {
-  const trimmed = keyInput.value.trim();
-  if (!trimmed) {
-    toast("Add your API key first");
-    status("Add your API key first");
-    return;
-  }
-  localStorage.setItem("OPENAI_API_KEY", trimmed);
-  toast("Key saved");
-  connect();
 };
 
 el("clear").onclick = () => {
@@ -61,6 +76,10 @@ el("clear").onclick = () => {
   keyInput.value = "";
   keyInput.type = "password";
   updateShowButton(false);
+  lastSavedKey = "";
+  setKeyPanelVisibility(true);
+  keyInput.focus();
+  updateKeyIndicator();
   toast("Key cleared");
   teardownConnection();
 };
@@ -254,6 +273,71 @@ function updateToggleButton() {
   toggleBtn.setAttribute("aria-label", label);
   toggleBtn.setAttribute("title", label);
   toggleBtn.setAttribute("aria-pressed", String(listening));
+}
+
+function setKeyPanelVisibility(visible) {
+  if (!keyPanel) return;
+  if (visible) {
+    keyPanel.removeAttribute("hidden");
+    keyToggle.setAttribute("aria-expanded", "true");
+  } else {
+    keyPanel.setAttribute("hidden", "");
+    keyToggle.setAttribute("aria-expanded", "false");
+  }
+}
+
+function scheduleKeySave() {
+  clearTimeout(autoSaveTimer);
+  autoSaveTimer = setTimeout(() => {
+    persistKey();
+  }, 600);
+}
+
+function persistKey({ force = false } = {}) {
+  clearTimeout(autoSaveTimer);
+  autoSaveTimer = null;
+
+  const trimmed = keyInput.value.trim();
+  updateKeyIndicator();
+
+  if (!trimmed) {
+    if (!force || !lastSavedKey) {
+      return;
+    }
+    invalidateConnectionAttempts();
+    localStorage.removeItem("OPENAI_API_KEY");
+    lastSavedKey = "";
+    keyInput.type = "password";
+    updateShowButton(false);
+    toast("Key cleared");
+    teardownConnection();
+    return;
+  }
+
+  const likelyCompleteKey = trimmed.startsWith("sk-") && trimmed.length >= 20;
+
+  if (!force && !likelyCompleteKey) {
+    return;
+  }
+
+  if (trimmed === lastSavedKey) {
+    if (force && connectionState !== ConnectionState.CONNECTED) {
+      connect();
+    }
+    return;
+  }
+
+  localStorage.setItem("OPENAI_API_KEY", trimmed);
+  lastSavedKey = trimmed;
+  toast("Key saved");
+  connect();
+}
+
+function updateKeyIndicator() {
+  if (!keyToggle) return;
+  const hasKey = keyInput.value.trim().length > 0;
+  keyToggle.classList.toggle("api-key__toggle--ok", hasKey);
+  keyToggle.classList.toggle("api-key__toggle--missing", !hasKey);
 }
 
 function startListening() {

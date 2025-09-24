@@ -7,24 +7,37 @@ body {
 
 header {
   display: flex;
-  gap: 8px;
-  align-items: center;
+  justify-content: flex-start;
   flex-wrap: wrap;
+  gap: 8px;
 }
 
-.row {
+.api-key {
   display: flex;
   gap: 8px;
   align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  width: 100%;
 }
 
-.row--grow {
-  flex: 1;
+.api-key__panel {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex: 1 1 0%;
+  min-width: 0;
+}
+
+.api-key__panel[hidden] {
+  display: none;
 }
 
 input[type="password"],
 input[type="text"] {
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
   padding: 8px 10px;
   border: 1px solid #ddd;
   border-radius: 8px;
@@ -59,6 +72,54 @@ button.icon-button {
 button.icon-button .fa-solid {
   font-size: 18px;
   color: inherit;
+}
+
+.api-key .icon-button {
+  background: #fff;
+  border: 1px solid #ddd;
+  color: #444;
+}
+
+.api-key .icon-button:hover:not(:disabled) {
+  background: #fff;
+  border-color: #bbb;
+}
+
+.api-key .icon-button:focus-visible {
+  outline: 2px solid #4285f4;
+  outline-offset: 2px;
+}
+
+.api-key .icon-button:disabled {
+  background: #fafafa;
+  border-color: #e4e4e4;
+  color: #999;
+}
+
+.api-key__toggle {
+  transition: border-color 0.2s ease, color 0.2s ease;
+}
+
+.api-key__toggle.api-key__toggle--missing {
+  border-color: #b8b8b8;
+  color: #7a7a7a;
+  background: #f4f4f4;
+}
+
+.api-key__toggle.api-key__toggle--missing:hover:not(:disabled) {
+  border-color: #9f9f9f;
+  background: #ededed;
+}
+
+.api-key__toggle.api-key__toggle--ok {
+  border-color: #28a745;
+  color: #28a745;
+  background: #e8f5ea;
+}
+
+.api-key__toggle.api-key__toggle--ok:hover:not(:disabled) {
+  border-color: #218838;
+  background: #d9f0df;
 }
 
 button.icon-button:hover:not(:disabled) {

@@ -15,13 +15,33 @@
 </head>
 <body>
   <header>
-    <div class="row row--grow">
-      <input id="key" type="password" placeholder="Paste your OpenAI API key (sk-...)" autocomplete="off" />
-      <button id="show" class="icon-button" type="button" aria-label="Show API key" aria-pressed="false" title="Show API key">
-        <i class="fa-solid fa-eye-slash" aria-hidden="true"></i>
+    <div class="api-key">
+      <button
+        id="key-toggle"
+        class="icon-button api-key__toggle api-key__toggle--missing"
+        type="button"
+        aria-label="Show API key settings"
+        aria-expanded="false"
+        aria-controls="key-panel"
+        title="Show API key settings"
+      >
+        <i class="fa-solid fa-key" aria-hidden="true"></i>
       </button>
-      <button id="save" type="button">Save</button>
-      <button id="clear" type="button">Clear</button>
+      <div id="key-panel" class="api-key__panel" hidden>
+        <input id="key" type="password" placeholder="Paste your OpenAI API key (sk-...)" autocomplete="off" />
+        <button id="show" class="icon-button" type="button" aria-label="Show API key" aria-pressed="false" title="Show API key">
+          <i class="fa-solid fa-eye-slash" aria-hidden="true"></i>
+        </button>
+        <button
+          id="clear"
+          class="icon-button"
+          type="button"
+          aria-label="Clear API key"
+          title="Clear API key"
+        >
+          <i class="fa-solid fa-trash" aria-hidden="true"></i>
+        </button>
+      </div>
     </div>
   </header>
 
