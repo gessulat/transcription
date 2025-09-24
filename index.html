@@ -52,15 +52,12 @@
     <small id="status">Not connected.</small>
   </div>
 
+ <pre id="out"></pre>
   <label class="debug-toggle">
     <input type="checkbox" id="debug" /> Show debug events
   </label>
-  <pre id="out"></pre>
   <pre id="log"></pre>
 
-  <p><small>
-    If you still see no text, enable “Show debug events” — you should see <code>conversation.item.input_audio_transcription.delta</code> events streaming in. If neither appears, your account/model may require a different transcription model name; try <code>gpt-4o-transcribe</code> instead of <code>gpt-4o-mini-transcribe</code>. The Realtime docs note input transcription is disabled by default and must be enabled in a response/session config. :contentReference[oaicite:1]{index=1}
-  </small></p>
 
   <script src="app.js" defer></script>
 </body>
