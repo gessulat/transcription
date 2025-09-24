@@ -17,7 +17,6 @@ let lastSavedKey = "";
 
 const el = (id) => document.getElementById(id);
 const out = el("out");
-const statusEl = el("status");
 const toggleBtn = el("toggle");
 const logBox = el("log");
 const keyInput = el("key");
@@ -95,21 +94,21 @@ function maybeAutoConnect() {
     connect();
   } else {
     setConnectionState(ConnectionState.DISCONNECTED);
-    status("Not connected.");
+    status("Disconnected.");
   }
 }
 
 async function connect() {
   const apiKey = keyInput.value.trim();
   if (!apiKey) {
-    status("Add your API key first");
+    status("API key needed.");
     setConnectionState(ConnectionState.DISCONNECTED);
     return;
   }
 
   const token = ++connectToken;
   setConnectionState(ConnectionState.CONNECTING);
-  status("Requesting microphone…");
+  status("Requesting mic.");
 
   teardownConnection({ keepState: true, preserveStatus: true });
 
@@ -132,7 +131,7 @@ async function connect() {
       return;
     }
 
-    status("Building WebRTC connection…");
+    status("Building connection.");
     localPc = new RTCPeerConnection();
     localPc.onconnectionstatechange = () => handlePeerConnectionStateChange(token, localPc);
     localStream.getTracks().forEach((track) => {
@@ -164,7 +163,7 @@ async function connect() {
       return;
     }
 
-    status("Exchanging SDP…");
+    status("Exchanging SDP.");
     const model = "gpt-4o-realtime-preview";
     const response = await fetch(
       `https://api.openai.com/v1/realtime?model=${encodeURIComponent(model)}`,
@@ -204,7 +203,7 @@ async function connect() {
     pc = localPc;
     dc = localDc;
     mediaStream = localStream;
-    status("Awaiting data channel…");
+    status("Waiting for channel.");
   } catch (err) {
     cleanupLocalConnection(localStream, localPc, localDc);
     if (token !== connectToken) {
@@ -219,7 +218,7 @@ async function connect() {
 
 function handleDataChannelOpen(token) {
   if (token !== connectToken) return;
-  status("Connected. Configuring session…");
+  status("Connected. Configuring.");
   setConnectionState(ConnectionState.CONNECTED);
   resetTranscriptState();
   configureSession();
@@ -347,7 +346,7 @@ function startListening() {
   if (mediaStream) {
     mediaStream.getAudioTracks().forEach((track) => (track.enabled = true));
   }
-  status("Listening…");
+  status("Listening.");
   updateToggleButton();
 }
 
@@ -358,7 +357,7 @@ function stopListening({ skipStatusUpdate = false } = {}) {
     mediaStream.getAudioTracks().forEach((track) => (track.enabled = false));
   }
   if (!skipStatusUpdate) {
-    status("Processing… ready again in a moment.");
+    status("Processing. Stand by.");
   }
   updateToggleButton();
 }
@@ -465,7 +464,10 @@ function safeSend(obj) {
 }
 
 function status(text) {
-  statusEl.textContent = text;
+  const message = typeof text === "string" ? text.trim() : String(text ?? "").trim();
+  if (!message) return;
+  console.debug(message);
+  log(message);
 }
 
 function log(text) {
@@ -538,7 +540,7 @@ function teardownConnection({ keepState = false, preserveStatus = false } = {}) 
     setConnectionState(ConnectionState.DISCONNECTED);
     resetTranscriptState();
     if (!preserveStatus) {
-      status("Not connected.");
+      status("Disconnected.");
     }
   } else {
     updateToggleButton();
