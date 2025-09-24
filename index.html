@@ -1,0 +1,223 @@
+<!doctype html><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Local STT (OpenAI Realtime, toggle-to-talk)</title>
+<style>
+body{font-family:system-ui,Segoe UI,Arial,sans-serif;max-width:720px;margin:24px auto;padding:0 16px}
+header{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+input[type=password],input[type=text]{flex:1;padding:8px 10px;border:1px solid #ddd;border-radius:8px}
+button{padding:10px 14px;border:0;border-radius:10px;cursor:pointer}
+#connect{background:#111;color:#fff}
+#toggle{background:#0a7;color:#fff;font-weight:600}
+#toggle.listening{background:#c33}
+#out{white-space:pre-wrap;border:1px solid #eee;border-radius:10px;padding:12px;min-height:120px;margin-top:12px}
+#log{white-space:pre-wrap;border:1px dashed #ccc;border-radius:10px;padding:10px;max-height:160px;overflow:auto;font-size:12px;background:#fafafa}
+.badge{background:#eef;border:1px solid #dde;padding:2px 8px;border-radius:999px;font-size:12px}
+.row{display:flex;gap:8px;align-items:center}
+small{color:#666}
+</style>
+
+<header>
+  <span class="badge">Realtime STT</span>
+  <div class="row" style="flex:1">
+    <input id="key" type="password" placeholder="Paste your OpenAI API key (sk-...)" autocomplete="off"/>
+    <button id="show">Show</button>
+    <button id="save">Save</button>
+    <button id="clear">Clear</button>
+  </div>
+  <button id="connect">Connect</button>
+</header>
+
+<div style="margin:14px 0;display:flex;gap:8px;align-items:center">
+  <button id="toggle" disabled>Start talking</button>
+  <small id="status">Not connected.</small>
+</div>
+
+<label style="display:flex;gap:6px;align-items:center;margin:8px 0">
+  <input type="checkbox" id="debug"/> Show debug events
+</label>
+<pre id="out"></pre>
+<pre id="log" style="display:none"></pre>
+
+<script>
+let pc, dc, mediaStream
+let connected=false, listening=false
+const transcripts=[]
+let activeTranscriptId=null, currentPartial=""
+
+const el = id => document.getElementById(id)
+const out = el('out'), statusEl = el('status'), toggleBtn = el('toggle'), logBox = el('log')
+const keyInput = el('key'), debug = el('debug')
+const TRANSCRIPTION_MODEL = 'gpt-4o-mini-transcribe'
+
+;(()=>{const saved = localStorage.getItem('OPENAI_API_KEY'); if(saved) keyInput.value=saved})()
+el('show').onclick = ()=> keyInput.type = keyInput.type==='password' ? 'text' : 'password'
+el('save').onclick = ()=>{ localStorage.setItem('OPENAI_API_KEY', keyInput.value.trim()); toast('Key saved') }
+el('clear').onclick = ()=>{ localStorage.removeItem('OPENAI_API_KEY'); keyInput.value=''; toast('Key cleared') }
+debug.onchange = ()=> logBox.style.display = debug.checked ? 'block':'none'
+
+el('connect').onclick = async ()=>{
+  const apiKey = keyInput.value.trim()
+  if(!apiKey){ toast('Add your API key first'); return }
+  try{
+    status('Requesting microphone…')
+    mediaStream = await navigator.mediaDevices.getUserMedia({ audio:{channelCount:1,noiseSuppression:true,echoCancellation:true,autoGainControl:true}})
+    status('Building WebRTC connection…')
+    pc = new RTCPeerConnection()
+    pc.onconnectionstatechange = ()=> status('PeerConnection: '+pc.connectionState)
+    mediaStream.getTracks().forEach(t=>{ t.enabled=false; pc.addTrack(t, mediaStream) }) // gated by toggle
+
+    dc = pc.createDataChannel('oai-events')
+    dc.onopen = ()=>{
+      status('Connected. Configuring session…')
+      configureSession()
+    }
+    dc.onmessage = onRealtimeEvent
+
+    const offer = await pc.createOffer()
+    await pc.setLocalDescription(offer)
+
+    const model = 'gpt-4o-realtime-preview'
+    const r = await fetch(`https://api.openai.com/v1/realtime?model=${encodeURIComponent(model)}`, {
+      method:'POST',
+      headers:{ 'Authorization':`Bearer ${apiKey}`, 'Content-Type':'application/sdp' },
+      body: offer.sdp
+    })
+    if(!r.ok){ throw new Error(`SDP exchange failed: ${r.status} ${r.statusText}`) }
+    const answer = { type:'answer', sdp:await r.text() }
+    await pc.setRemoteDescription(answer)
+
+    connected = true
+    toggleBtn.disabled = false
+    resetTranscriptState()
+    status('Ready.')
+  }catch(err){ console.error(err); status('Error: '+(err?.message||err)); toast('Failed to connect. See console.') }
+}
+
+toggleBtn.onclick = ()=>{
+  if(!connected) return
+  if(!listening) startListening()
+  else stopListening()
+}
+
+function configureSession(){
+  safeSend({
+    type:'session.update',
+    session:{
+      instructions:'You are a transcription endpoint. Never speak back.',
+      input_audio_transcription:{ model: TRANSCRIPTION_MODEL },
+      turn_detection:{
+        type:'server_vad',
+        threshold:0.5,
+        prefix_padding_ms:300,
+        silence_duration_ms:200,
+        create_response:false,
+        interrupt_response:false
+      }
+    }
+  })
+}
+
+function startListening(){
+  listening = true
+  resetTranscriptState()
+  toggleBtn.classList.add('listening')
+  toggleBtn.textContent = 'Stop'
+  mediaStream.getAudioTracks().forEach(t=>t.enabled=true)
+  status('Listening…')
+}
+
+function stopListening(){
+  listening = false
+  mediaStream.getAudioTracks().forEach(t=>t.enabled=false)
+  toggleBtn.classList.remove('listening')
+  toggleBtn.textContent = 'Start talking'
+  status('Processing… ready again in a moment.')
+}
+
+function onRealtimeEvent(e){
+  let msg
+  try{ msg = JSON.parse(e.data) }catch{ return }
+  if(debug.checked) log(JSON.stringify(msg))
+
+  const type = msg?.type || ''
+
+  if(type === 'error'){
+    status('Error: '+(msg.error?.message || 'unknown'))
+    return
+  }
+
+  if(type === 'response.created' && msg.response?.id){
+    // Cancel any auto-generated assistant responses; we only want transcripts.
+    safeSend({ type:'response.cancel', response:{ id: msg.response.id } })
+    return
+  }
+
+  if(type === 'conversation.item.input_audio_transcription.delta' && typeof msg.delta==='string'){
+    handleTranscriptDelta(msg.item_id, msg.delta)
+  }else if(type === 'conversation.item.input_audio_transcription.completed'){
+    handleTranscriptComplete(msg.item_id, msg.transcript || msg.text || '')
+  }else if(type === 'transcript.delta' && typeof msg.delta==='string'){
+    handleTranscriptDelta(msg.item_id || 'default', msg.delta)
+  }else if(type === 'transcript.completed' && typeof msg.text==='string'){
+    handleTranscriptComplete(msg.item_id || 'default', msg.text)
+  }else if(type === 'session.updated'){
+    status('Ready.')
+  }else if(type === 'response.error'){
+    status('Error: '+(msg.error?.message || 'unknown'))
+  }
+}
+
+function handleTranscriptDelta(itemId, delta){
+  if(!itemId) return
+  if(activeTranscriptId !== itemId){
+    activeTranscriptId = itemId
+    currentPartial=''
+  }
+  currentPartial += delta
+  renderTranscript()
+}
+
+function handleTranscriptComplete(itemId, text){
+  if(!itemId) return
+  if(activeTranscriptId !== itemId){
+    activeTranscriptId = itemId
+  }
+  if(text) currentPartial = text
+  if(currentPartial){
+    transcripts.push(currentPartial)
+  }
+  activeTranscriptId = null
+  currentPartial=''
+  renderTranscript()
+  status('Ready.')
+}
+
+function renderTranscript(){
+  const pieces = transcripts.slice()
+  if(currentPartial) pieces.push(currentPartial)
+  out.textContent = pieces.join('\n')
+}
+
+function resetTranscriptState(){
+  transcripts.length = 0
+  activeTranscriptId = null
+  currentPartial=''
+  renderTranscript()
+}
+
+function safeSend(obj){
+  if(dc && dc.readyState==='open'){
+    dc.send(JSON.stringify(obj))
+  }else{
+    log('DataChannel not open; cannot send: '+JSON.stringify(obj))
+  }
+}
+
+function status(t){ statusEl.textContent = t }
+function log(t){ logBox.textContent += t+'\n'; logBox.scrollTop = logBox.scrollHeight }
+function toast(t){ console.log(t) }
+</script>
+
+<p><small>
+If you still see no text, enable “Show debug events” — you should see <code>conversation.item.input_audio_transcription.delta</code> events streaming in. If neither appears, your account/model may require a different transcription model name; try <code>gpt-4o-transcribe</code> instead of <code>gpt-4o-mini-transcribe</code>. The Realtime docs note input transcription is disabled by default and must be enabled in a response/session config. :contentReference[oaicite:1]{index=1}
+</small></p>
+
