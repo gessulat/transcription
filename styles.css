@@ -1,0 +1,129 @@
+body {
+  font-family: system-ui, Segoe UI, Arial, sans-serif;
+  max-width: 720px;
+  margin: 24px auto;
+  padding: 0 16px;
+}
+
+header {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.row--grow {
+  flex: 1;
+}
+
+input[type="password"],
+input[type="text"] {
+  flex: 1;
+  padding: 8px 10px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+}
+
+button {
+  padding: 10px 14px;
+  border: 0;
+  border-radius: 10px;
+  cursor: pointer;
+  background: #f3f3f3;
+  color: #333;
+  transition: background 0.2s ease, color 0.2s ease, opacity 0.2s ease;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+button.icon-button {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #dcdcdc;
+  color: #555;
+}
+
+button.icon-button .fa-solid {
+  font-size: 18px;
+  color: inherit;
+}
+
+button.icon-button:hover:not(:disabled) {
+  background: #cfcfcf;
+}
+
+button.icon-button:focus-visible {
+  outline: 2px solid #4285f4;
+  outline-offset: 2px;
+}
+
+button.icon-button:disabled {
+  background: #e6e6e6;
+}
+
+button.icon-button.is-connecting {
+  background: #fff3cd;
+  color: #8a6d1d;
+}
+
+button.icon-button.is-connected {
+  background: #e5f6ea;
+  color: #0a7;
+}
+
+button.icon-button.is-recording {
+  background: #fde4e4;
+  color: #c33;
+}
+
+.controls {
+  margin: 14px 0;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+#out {
+  white-space: pre-wrap;
+  border: 1px solid #eee;
+  border-radius: 10px;
+  padding: 12px;
+  min-height: 120px;
+  margin-top: 12px;
+}
+
+#log {
+  display: none;
+  white-space: pre-wrap;
+  border: 1px dashed #ccc;
+  border-radius: 10px;
+  padding: 10px;
+  max-height: 160px;
+  overflow: auto;
+  font-size: 12px;
+  background: #fafafa;
+}
+
+.debug-toggle {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin: 8px 0;
+}
+
+small {
+  color: #666;
+}
